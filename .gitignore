@@ -1,0 +1,4 @@
+build/
+*Zone.Identifier
+*.tar.gz
+eigen-3.3.0/
