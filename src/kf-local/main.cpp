@@ -1,89 +1,64 @@
 #include <iostream>
-#include <stdint.h>
+#include <vector>
+#include <cnpy.h>
+#include <chrono>
 
 #include "kalman_filter/kalman_filter.h"
 #include "types.h"
 
-static constexpr size_t DIM_X{64};
-static constexpr size_t DIM_Z{32};  // observation dimension (adjust as needed)
-static constexpr kf::float32_t T{1.0F};
-static constexpr kf::float32_t Q_DIAG{0.1F};  // uniform diagonal noise value
+static constexpr size_t N       = 1;
+static constexpr size_t T_STEPS = 1;
+static constexpr size_t DIM_X   = 64;
+static constexpr size_t DIM_Z   = 64;
 
-static kf::KalmanFilter<DIM_X, DIM_Z> kalmanfilter;
+int main(){
+    cnpy::NpyArray x0s_npy  = cnpy::npy_load("initial_states.npy");
+    cnpy::NpyArray meas_npy = cnpy::npy_load("measurements.npy");
 
-void executePredictionStep();
-void executeCorrectionStep();
+    double* x0s_data  = x0s_npy.data<double>();
+    double* meas_data = meas_npy.data<double>();
 
-int main()
-{
-  executePredictionStep();
-  executeCorrectionStep();
+    const kf::Matrix<DIM_X, DIM_X> F = kf::Matrix<DIM_X, DIM_X>::Identity();
+    const kf::Matrix<DIM_X, DIM_X> Q = kf::Matrix<DIM_X, DIM_X>::Identity() * 0.01F;
+    const kf::Matrix<DIM_Z, DIM_X> H = kf::Matrix<DIM_Z, DIM_X>::Identity();
+    const kf::Matrix<DIM_Z, DIM_Z> R = kf::Matrix<DIM_Z, DIM_Z>::Identity() * 5.0F;
+    const kf::Matrix<DIM_X, DIM_X> P0 = kf::Matrix<DIM_X, DIM_X>::Identity() * 500.0F;
 
-  return 0;
-}
+    std::vector<double> results(N * T_STEPS * DIM_X);
 
-void executePredictionStep()
-{
-  // Initialize state vector: alternating position/velocity pairs across 32 channels
-  // Layout: [pos0, vel0, pos1, vel1, ..., pos31, vel31]
-  kf::Vector<DIM_X> x0 = kf::Vector<DIM_X>::Zero();
-  for (size_t i = 0; i < DIM_X; i += 2)
-  {
-    x0(i)     = 0.0F;   // position component
-    x0(i + 1) = 2.0F;   // velocity component
-  }
-  kalmanfilter.vecX() = x0;
+    auto start = std::chrono::steady_clock::now();
 
-  kalmanfilter.matP() = kf::Matrix<DIM_X, DIM_X>::Identity() * 0.1F;
+    for (size_t n = 0; n < N; ++n)
+    {
+        kf::KalmanFilter<DIM_X, DIM_Z> filter;
 
-  kf::Matrix<DIM_X, DIM_X> F = kf::Matrix<DIM_X, DIM_X>::Zero();
-  for (size_t i = 0; i < DIM_X; i += 2)
-  {
-    F(i, i) = 1.0F;
-    F(i, i + 1) = T;
-    F(i + 1, i) = 0.0F;
-    F(i + 1, i + 1) = 1.0F;
-  }
+        for (size_t i = 0; i < DIM_X; ++i)
+            filter.vecX()(i) = static_cast<kf::float32_t>(x0s_data[n * DIM_X + i]);
 
-  kf::Matrix<DIM_X, DIM_X> Q = kf::Matrix<DIM_X, DIM_X>::Zero();
-  const kf::float32_t q11 = Q_DIAG * T + Q_DIAG * (std::pow(T, 3.0F) / 3.0F);
-  const kf::float32_t q12 = Q_DIAG * (std::pow(T, 2.0F) / 2.0F);
-  const kf::float32_t q22 = Q_DIAG * T;
+        filter.matP() = P0;
 
-  for (size_t i = 0; i < DIM_X; i += 2)
-  {
-    Q(i, i) = q11;
-    Q(i, i + 1) = q12;
-    Q(i + 1, i) = q12;
-    Q(i + 1, i + 1) = q22;
-  }
+        for (size_t t = 0; t < T_STEPS; ++t)
+        {
+            filter.predictLKF(F, Q);
 
-  kalmanfilter.predictLKF(F, Q);
+            kf::Vector<DIM_Z> vecZ;
+            for (size_t i = 0; i < DIM_Z; ++i)
+                vecZ(i) = static_cast<kf::float32_t>(
+                    meas_data[(n * T_STEPS + t) * DIM_Z + i]);
 
-  std::cout << "\npredicted state vector =\n" << kalmanfilter.vecX() << "\n";
-  std::cout << "\npredicted state covariance=\n"
-            << kalmanfilter.matP().topLeftCorner<4, 4>() << "\n";
-}
+            filter.correctLKF(vecZ, R, H);
 
-void executeCorrectionStep()
-{
-  kf::Vector<DIM_Z> vecZ;
-  for (size_t i = 0; i < DIM_Z; ++i)
-  {
-    vecZ(i) = 2.25F;
-  }
+            for (size_t i = 0; i < DIM_X; ++i)
+                results[(n * T_STEPS + t) * DIM_X + i] =
+                    static_cast<double>(filter.vecX()(i));
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    auto t = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  kf::Matrix<DIM_Z, DIM_Z> matR = kf::Matrix<DIM_Z, DIM_Z>::Identity() * 0.01F;
+    cnpy::npy_save("cpp_outputs.npy", results.data(), {N, T_STEPS, DIM_X}, "w");
+    std::cout << "Saved cpp_outputs.npy — time (" 
+    << N << ", " << T_STEPS << ", " << DIM_X << ") t = " << t.count() << "\n";
 
-  kf::Matrix<DIM_Z, DIM_X> matH = kf::Matrix<DIM_Z, DIM_X>::Zero();
-  for (size_t i = 0; i < DIM_Z; ++i)
-  {
-    matH(i, 2 * i) = 1.0F;
-  }
-
-  kalmanfilter.correctLKF(vecZ, matR, matH);
-
-  std::cout << "\ncorrected state vector =\n" << kalmanfilter.vecX() << "\n";
-  std::cout << "\ncorrected state covariance =\n"
-            << kalmanfilter.matP().topLeftCorner<4, 4>() << "\n";
+    return 0;
 }
