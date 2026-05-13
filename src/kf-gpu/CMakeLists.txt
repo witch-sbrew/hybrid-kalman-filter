@@ -12,3 +12,9 @@ find_package(CUDAToolkit REQUIRED)
 
 add_executable(kalman_cuda_batch main.cu)
 target_link_libraries(kalman_cuda_batch PRIVATE CUDA::cudart)
+
+install(TARGETS kalman_cuda_batch EXPORT kf_gpu)
+install(EXPORT kf_gpu
+    FILE kf_gpu.cmake
+    DESTINATION lib/cmake/kf_gpu
+)
