@@ -44,12 +44,26 @@ def load_series(csv_path: Path):
             n = int(row["n"])
             t = int(row["t"])
             elapsed = float(row["elapsed_seconds"])
-            series[n].append((t, elapsed, row["status"]))
+            if n > 8: series[n].append((t, elapsed, row["status"]))
 
     for n in series:
         series[n].sort(key=lambda item: item[0])
-
+    
     return series
+
+
+def line_color(index: int, total: int):
+    if total <= 1:
+        mix = 0.0
+    else:
+        mix = index / float(total - 1)
+
+    blue = (0.12, 0.38, 0.95)
+    green = (0.10, 0.68, 0.32)
+    return tuple(
+        blue[channel] + mix * (green[channel] - blue[channel])
+        for channel in range(3)
+    )
 
 
 def main():
@@ -68,18 +82,21 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    for n, points in sorted(series.items()):
+    ordered_series = sorted(series.items())
+    for index, (n, points) in enumerate(ordered_series):
         ts = [point[0] for point in points]
         ys = [point[1] for point in points]
-        ax.plot(ts, ys, marker="o", linewidth=1.8, label=f"N={n}")
+        color = line_color(index, len(ordered_series))
+        ax.plot(ts, ys, marker="o", linewidth=1.8, label=f"N={n}", color=color)
 
         if points[-1][2] == "threshold_exceeded":
-            ax.scatter([points[-1][0]], [points[-1][1]], marker="x", s=70, color=ax.lines[-1].get_color())
+            ax.scatter([points[-1][0]], [points[-1][1]], marker="x", s=70, color=color)
 
     ax.set_title("CUDA Kalman Filter Benchmark")
     ax.set_xlabel("T (timesteps)")
     ax.set_ylabel("Wall-clock runtime (seconds)")
     ax.set_xscale("log", base=2)
+    # ax.set_yscale("log", base=2)
     ax.grid(True, which="both", linestyle="--", alpha=0.35)
     ax.legend(title="Batch size", fontsize=8, ncol=2)
     fig.tight_layout()

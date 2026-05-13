@@ -96,8 +96,9 @@ def run_case(
     started = time.perf_counter()
     completed = subprocess.run(
         command,
-        capture_output=True,
-        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
     )
     elapsed = time.perf_counter() - started
 
