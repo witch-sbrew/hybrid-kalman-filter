@@ -9,6 +9,7 @@
 
 const int STATE_DIM = 64;
 
+namespace kfcpu {
 void kf_launch_cpu(kfcpu::CpuSlice& slice){
     int N = slice.filter_count;
     int T_STEPS = slice.step_count;
@@ -22,7 +23,7 @@ void kf_launch_cpu(kfcpu::CpuSlice& slice){
 
     #pragma omp parallel for
     for (size_t n = 0; n < N; ++n) {
-        std::cout << "Using " << omp_get_num_threads() << " thread\n";
+        //std::cout << "Using " << omp_get_num_threads() << " thread\n";
         std::unique_ptr<kf::KalmanFilter<DIM_X, DIM_Z>> filter = std::make_unique<kf::KalmanFilter<DIM_X, DIM_Z>>();
 
         for (size_t i = 0; i < DIM_X; ++i)
@@ -45,4 +46,5 @@ void kf_launch_cpu(kfcpu::CpuSlice& slice){
                     static_cast<float>(filter->vecX()(i));
         }
     }
+}
 }

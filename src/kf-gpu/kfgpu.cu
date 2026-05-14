@@ -40,7 +40,7 @@ __global__ void run_kalman_kernel(
     trajectories[output_index] = state;
   }
 }
-
+namespace kfgpuI {
 kfgpuI::GpuDBuffers alloc_dbuffers(const kfgpuI::GpuSlice& slice) {
     kfgpuI::GpuDBuffers bufs;
     bufs.initial_s = slice.filter_count 
@@ -86,3 +86,4 @@ void kf_launch_gpu(const kfgpuI::GpuSlice& slice, kfgpuI::GpuDBuffers& bufs, cud
     cudaMemcpyAsync(slice.output, bufs.trajectories,
                     bufs.trajectory_s, cudaMemcpyDeviceToHost, stream);
     }
+}

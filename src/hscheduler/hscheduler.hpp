@@ -71,23 +71,40 @@ private:
 };
 
 struct SchedulerConfig {
-    int N_gpu_min = 512;
-    int N_gpu_only = 32768;
- 
-    float cpu_fraction = 0.25f;
+    int T_cpu = 16;
+    int T1_time = 30; 
+
+    int gpu_alloc_time = 400;
+
 };
 
 class HScheduler {
     public:
 
-        explicit HScheduler(SchedulerConfig cfg = {}): cfg_(cfg), gpu_ctx_(0){
+        explicit HScheduler(bool gpu_only, SchedulerConfig cfg = {}): cfg_(cfg), gpu_ctx_(0), gpu_only_(gpu_only){
 
         }
 
         ExStats run(const KFInstance& job){
             ExStats stats;
             //CHANGE
-            int n_cpu = 1, n_gpu = 0;
+            int n_cpu = 0, n_gpu = 0;
+            
+            if(gpu_only_) {
+                n_gpu = job.filter_count;
+            } else {
+            if(job.filter_count + job.step_count <= 64 + 32){
+                n_cpu = job.filter_count;
+                n_gpu = 0;
+            }
+            else if(job.step_count >= 32){
+                n_cpu = 0;
+                n_gpu = job.filter_count;
+            } else {
+                n_cpu = 32;
+                n_gpu = job.filter_count - n_cpu;
+            }
+            }
 
             stats.N_cpu = n_cpu;
             stats.N_gpu = n_gpu;
@@ -103,11 +120,13 @@ class HScheduler {
                 std::ref(stats.omp_threads_used), n_cpu
             );
             }
+
+            auto wall_start = std::chrono::high_resolution_clock::now();
             if (n_gpu > 0) {
                 launch_gpu_partition(job, n_cpu, n_gpu, stats);
             }
 
-             auto wall_start = std::chrono::high_resolution_clock::now();
+             
  
             if (n_gpu > 0) {
                 cudaStreamSynchronize(gpu_ctx_.stream());
@@ -178,6 +197,7 @@ class HScheduler {
         SchedulerConfig              cfg_;
         GpuContext                   gpu_ctx_;
         kfgpuI::GpuDBuffers           gpu_bufs_;
+        bool                         gpu_only_;
 };
 
 template<typename T>
