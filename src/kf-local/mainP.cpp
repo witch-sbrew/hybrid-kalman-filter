@@ -7,14 +7,13 @@
 
 #include "kalman_filter/kalman_filter.h"
 #include "types.h"
-
-static constexpr size_t N       = 1;
-static constexpr size_t T_STEPS = 128;
-static constexpr size_t DIM_X   = 64;
-static constexpr size_t DIM_Z   = 64;
+#include "include/kfcpu.hpp"
 
 int main(){
-    //Eigen::setNbThreads(2);
+    const size_t N       = 1;
+    const  size_t T_STEPS = 128;
+    const  size_t DIM_X   = 64;
+    const  size_t DIM_Z   = 64;
     std::cout << "Using " << omp_get_num_threads() << " thread\n";
 
     cnpy::NpyArray x0s_npy  = cnpy::npy_load("initial_states.npy");
@@ -24,11 +23,10 @@ int main(){
     double* meas_data = meas_npy.data<double>();
 
     const kf::Matrix<DIM_X, DIM_X> F = kf::Matrix<DIM_X, DIM_X>::Identity();
-    const kf::Matrix<DIM_X, DIM_X> Q = kf::Matrix<DIM_X, DIM_X>::Identity() * 0.01F;
-    const kf::Matrix<DIM_Z, DIM_X> H = kf::Matrix<DIM_Z, DIM_X>::Identity();
-    const kf::Matrix<DIM_Z, DIM_Z> R = kf::Matrix<DIM_Z, DIM_Z>::Identity() * 5.0F;
-    const kf::Matrix<DIM_X, DIM_X> P0 = kf::Matrix<DIM_X, DIM_X>::Identity() * 500.0F;
-
+const kf::Matrix<DIM_X, DIM_X> Q = kf::Matrix<DIM_X, DIM_X>::Identity() * 0.01F;
+const kf::Matrix<DIM_Z, DIM_X> H = kf::Matrix<DIM_Z, DIM_X>::Identity();
+const kf::Matrix<DIM_Z, DIM_Z> R = kf::Matrix<DIM_Z, DIM_Z>::Identity() * 5.0F;
+const kf::Matrix<DIM_X, DIM_X> P0 = kf::Matrix<DIM_X, DIM_X>::Identity() * 500.0F;
     std::vector<float> results(N * T_STEPS * DIM_X);
 
     auto start = std::chrono::steady_clock::now();
@@ -63,7 +61,7 @@ int main(){
     auto t = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     cnpy::npy_save("cpp_outputs.npy", results.data(), {N, T_STEPS, DIM_X}, "w");
-    std::cout << "Saved cpp_outputs.npy — time P(" 
+    std::cout << "time P(" 
     << N << ", " << T_STEPS << ", " << DIM_X << ") t = " << t.count() << "\n";
 
     return 0;

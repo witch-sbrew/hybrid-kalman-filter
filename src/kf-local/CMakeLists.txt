@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.4)
-project(KFcpu)
+project(KFcpu CXX C)
 
 # Need to give it the raw eigen lib with the cmake files I added or KF doesn't work!!
-set(EIGEN_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/eigen-3.3.0")
+set(EIGEN_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/kf-local/eigen-3.3.0")
 set(Eigen3_DIR "${CMAKE_SOURCE_DIR}/eigen-3.3.0/build")
 
 find_package(OpenMP REQUIRED) 
@@ -36,20 +36,25 @@ FetchContent_MakeAvailable(OpenKF cnpy)
 # #add_subdirectory(external/eigen-5.0.0/Eigen)
 # add_subdirectory(external/OpenKF)
 
+add_library(kf_cpu STATIC kfcpu.cpp)
 
-add_executable(main main.cpp)
+add_executable(mainS main.cpp)
 add_executable(mainP mainP.cpp)
 
-target_link_libraries(main PUBLIC Eigen3::Eigen OpenKF cnpy)
-target_link_libraries(mainP PUBLIC OpenMP::OpenMP_CXX Eigen3::Eigen OpenKF cnpy)
 
-target_include_directories(main PUBLIC ${cnpy_SOURCE_DIR})
-target_include_directories(mainP PUBLIC 
-$<BUILD_INTERFACE:${cnpy_SOURCE_DIR}>
+target_link_libraries(mainS PUBLIC Eigen3::Eigen OpenKF cnpy)
+target_link_libraries(mainP PUBLIC OpenMP::OpenMP_CXX Eigen3::Eigen OpenKF cnpy)
+target_link_libraries(kf_cpu PUBLIC OpenMP::OpenMP_CXX Eigen3::Eigen OpenKF)
+
+target_include_directories(mainS PUBLIC ${cnpy_SOURCE_DIR})
+target_include_directories(mainP PUBLIC ${cnpy_SOURCE_DIR})
+
+target_include_directories(kf_cpu PUBLIC 
+$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 $<INSTALL_INTERFACE:include>)
 
-install(TARGETS mainP EXPORT kf_cpu)
-install(EXPORT kf_cpu
+install(TARGETS kf_cpu EXPORT kf_cpu_tar)
+install(EXPORT kf_cpu_tar
     FILE kf_cpu.cmake
     DESTINATION lib/cmake/kf_cpu
 )
